@@ -1,45 +1,40 @@
 import numpy as np
 import os
-from xml.etree import ElementTree as ET
 from PIL import Image
 
-# Images = "/Users/aslandalhoffbehbahani/Downloads/PKLot/Images"
-# labels = "/Users/aslandalhoffbehbahani/Downloads/PKLot/Labels"
+Images = "/Users/aslandalhoffbehbahani/Downloads/PKLot/Images"
+output_folder = "/Users/aslandalhoffbehbahani/Downloads/PKLot/Processed"  # Output folder
 
-# # List to store preprocessed images
-# preprocessed_images = []
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
-# Ims = os.listdir(Images)
+# Get a list of valid image files
+Ims = [file for file in os.listdir(Images) if file.endswith((".jpg", ".png", ".jpeg"))]
 
-# # Loop through all files in the folder
-# for filename in Ims[:10000]:
-#     if filename.endswith((".jpg", ".png", ".jpeg")):  # Process only image files
-#         file_path = os.path.join(Images, filename)
-        
-#         # Load the image
-#         image = Image.open(file_path)
+# Process files in smaller batches
+batch_size = 100  # Process 100 images at a time
+for i in range(0, len(Ims), batch_size):
+    batch_files = Ims[i:i+batch_size]  # Get files for this batch
+    batch_data = []
 
-#         # Resize the image to 224x224
-#         image = image.resize((512,512))
-        
-#         # Convert to numpy array (pixel values)
-#         image_array = np.array(image)
-        
-#         # Normalize pixel values to [0, 1]
-#         normalized_image = image_array / 255.0
-        
-#         # Add batch dimension
-#         batched_image = np.expand_dims(normalized_image, axis=0)
-        
-#         # Append to the list of preprocessed images
-#         preprocessed_images.append(batched_image)
+    for filename in batch_files:
+        file_path = os.path.join(Images, filename)
 
-#         # file x out of y
-#         print(f"Processed {len(preprocessed_images)} out of {len(Ims)}", end="\r")
+        try:
+            # Load and preprocess the image
+            with Image.open(file_path) as image:
+                image = image.resize((512, 512))  # Resize to 512x512
+                image_array = np.array(image) / 255.0  # Normalize to [0, 1]
+                batch_data.append(image_array)
 
-# # Convert the list of preprocessed images to a single numpy array
-# # The shape will be (num_images, 224, 224, 3)
-# batch_array = np.vstack(preprocessed_images)
+        except Exception as e:
+            print(f"Error processing {filename}: {e}")
 
-# # Output shape
-# print(f"Batch shape: {batch_array.shape}")
+    # Save the current batch to a .npy file
+    batch_array = np.array(batch_data)
+    batch_output_path = os.path.join(output_folder, f"batch_{i//batch_size + 1}.npy")
+    np.save(batch_output_path, batch_array)
+
+    print(f"Saved batch {i//batch_size + 1} to {batch_output_path}")
+
+print("Processing complete!")
