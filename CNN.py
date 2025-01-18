@@ -14,6 +14,7 @@ import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
 
+
 class ParkingLotDataset(Dataset):
     def __init__(self, batch_folder, labels_file):
         """
@@ -30,14 +31,16 @@ class ParkingLotDataset(Dataset):
             self.labels = [int(line.split(":")[-1].strip()) for line in f]
 
         # Get the list of .npy files
-        self.batch_files = sorted(os.listdir(batch_folder))
+        self.batch_files = sorted(
+            [f for f in os.listdir(batch_folder) if f.endswith(".npy") and not f.startswith("._")]
+        )
 
         # Map labels to batches (assuming labels are in order)
         self.num_batches = len(self.batch_files)
         self.batch_indices = []  # Maps global index to (batch_file, batch_idx)
         for i, batch_file in enumerate(self.batch_files):
             batch_path = os.path.join(batch_folder, batch_file)
-            batch_data = np.load(batch_path)
+            batch_data = np.load(batch_path, allow_pickle=True)
             for idx in range(len(batch_data)):
                 self.batch_indices.append((batch_file, idx))
 
@@ -53,7 +56,7 @@ class ParkingLotDataset(Dataset):
     def __getitem__(self, idx):
         batch_file, batch_idx = self.batch_indices[idx]
         batch_path = os.path.join(self.batch_folder, batch_file)
-        batch_data = np.load(batch_path)  # Load the specific batch
+        batch_data = np.load(batch_path, allow_pickle=True)  # Load the specific batch
         image = batch_data[batch_idx]  # Get the specific image within the batch
         label = self.labels[idx]  # Get the corresponding label
         
@@ -115,12 +118,13 @@ class CNN(nn.Module):
         x = self.fc2(x)
         return x
     
-image_folder = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Processed"
-labels_file = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Labels_Num.txt"
+image_folder = "/work3/s224819/02461_Exam_Project/Processed"
+labels_file = "/work3/s224819/02461_Exam_Project/Labels_Num.txt"
 
 labels = []
 
-with open("/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Labels_Num.txt", "r") as file:
+with open(labels_file, "r") as file:
+    # Your code here
     for line in file:
         # Split the line by ":" and strip whitespace
         label = line.split(":")[-1].strip()
@@ -131,11 +135,11 @@ transform = transforms.ToTensor()
 
 # Create dataset
 dataset = ParkingLotDataset(image_folder, labels_file)
-limited_dataset = torch.utils.data.Subset(dataset, range(100))
+limited_dataset = torch.utils.data.Subset(dataset, range(10000))
 
 # Create data loader
 # train_loader = DataLoader(dataset, batch_size=32, shuffle=True)
-train_loader = DataLoader(dataset, batch_size=128, shuffle=True)
+train_loader = DataLoader(dataset, batch_size=256, shuffle=True, num_workers=8)
 
 total_size = len(dataset)
 train_size = int(0.7 * total_size)  # 70% for training
@@ -144,15 +148,15 @@ test_size = total_size - train_size - val_size  # 15% for testing
 
 train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
 
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=128, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=128, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=256, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=256, shuffle=False)
 
 # Initialize the model, loss function, and optimizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = CNN().to(device)
 criterion = nn.MSELoss()  # Regression task -> Mean Squared Error loss
-optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=0.008, weight_decay=1e-4)
 print("Step 1 done")
 
 # Log the training results
@@ -160,7 +164,7 @@ train_losses = []
 val_losses = []
 
 # Training loop
-num_epochs = 1000
+num_epochs = 70
 for epoch in range(num_epochs):
     # Training phase
     model.train()
@@ -174,7 +178,7 @@ for epoch in range(num_epochs):
         
         # Zero the parameter gradients
         optimizer.zero_grad()
-        
+    
         # Forward pass
         outputs = model(images)
         outputs = outputs.squeeze()  # Remove unnecessary dimensions
@@ -185,6 +189,8 @@ for epoch in range(num_epochs):
         optimizer.step()
         
         running_loss += loss.item()
+
+        print(f"Batch {batch_idx}/{len(train_loader)}")
     
     avg_train_loss = running_loss / len(train_loader)
     train_losses.append(avg_train_loss)
@@ -232,3 +238,4 @@ plt.legend()
 plt.grid()
 plt.savefig("loss_plot.png")
 plt.show()
+
