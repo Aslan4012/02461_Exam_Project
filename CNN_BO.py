@@ -1,3 +1,7 @@
+# All of the code below has been written in cooperation with generative AI.
+# The AI has been used to write the basic structure of the code, and I have then modified it to fit the project
+# and to tune the hyperparameters, number of epochs, batch size and number of convolutional layers.
+
 import torch
 import torch.nn.functional as F
 import torchvision.datasets as datasets
@@ -11,14 +15,10 @@ from tqdm import tqdm
 from PIL import Image
 import os
 import numpy as np
-from torchvision import transforms
-import numpy as np
-import GPyOpt
-import numpy as np
-import torch.optim as optim
-import torch.nn as nn
-from torch.utils.data import DataLoader, TensorDataset
 from time import time
+from torchvision import transforms
+import matplotlib.pyplot as plt
+import math
 
 
 
@@ -76,7 +76,7 @@ class ParkingLotDataset(Dataset):
 
         except Exception as e:
             raise RuntimeError(f"Error loading batch {image_batch_file} or {label_batch_file}: {e}")
-
+    
 class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
@@ -92,26 +92,26 @@ class CNN(nn.Module):
         self.bn2 = nn.BatchNorm2d(64)
         self.relu2 = nn.ReLU()
         self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [64, 128, 128]
-        self.dropout2 = nn.Dropout(0.25)
+        self.dropout2 = nn.Dropout(3.56670107e-01)
 
         # Third Convolutional Block
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
         self.bn3 = nn.BatchNorm2d(128)
         self.relu3 = nn.ReLU()
         self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [128, 64, 64]
-        self.dropout3 = nn.Dropout(0.25)
+        self.dropout3 = nn.Dropout(3.56670107e-01)
 
         # Fourth Convolutional Block (optional)
         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(256)
         self.relu4 = nn.ReLU()
         self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [256, 32, 32]
-        self.dropout4 = nn.Dropout(0.25)
+        self.dropout4 = nn.Dropout(3.56670107e-01)
 
         # Fully Connected Layers
         self.fc1 = nn.Linear(256 * 32 * 32, 128)  # Adjust input size
         self.relu5 = nn.ReLU()
-        self.dropout5 = nn.Dropout(0.5)
+        self.dropout5 = nn.Dropout(3.56670107e-01)
         self.fc2 = nn.Linear(128, 1)  # Single output for regression
 
     def forward(self, x):
@@ -129,12 +129,13 @@ class CNN(nn.Module):
         x = self.relu5(x)
         x = self.fc2(x)
         return x
+    
 
-batch_folder = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Processed"
+batch_folder = "/work3/s224819/02461_Exam_Project/Processed"
 
 # Create dataset
 dataset = ParkingLotDataset(batch_folder)
-limited_dataset = torch.utils.data.Subset(dataset, range(10000))
+limited_dataset = torch.utils.data.Subset(dataset, range(len(dataset)))
 
 # Split dataset
 total_size = len(limited_dataset)
@@ -156,110 +157,157 @@ print("Train Label Stats:", np.mean(train_labels), np.std(train_labels))
 print("Validation Label Stats:", np.mean(val_labels), np.std(val_labels))
 
 # DataLoaders
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
+test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
 
 tranform = transforms.ToTensor()
 
-
+# Initialize the model, loss function, and optimizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = CNN().to(device)
+criterion = nn.MSELoss()  # Regression task -> Mean Squared Error loss
+optimizer = optim.Adam(model.parameters(), lr=4.55373601e-03, weight_decay=1e-4)
+# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
+print("Step 1 done")
 
-def objective_function(params):
-    learning_rate = params[0][0]
-    batch_size = int(params[0][1])
-    dropout_rate = params[0][2]
+# Log the training results
+train_losses = []
+val_losses = []
 
+print(f"Training with the hyperparameters - Learning rate: 4.55373601e-03, Batch size: 16, Dropout rate: 3.56670107e-01")
 
-    print(f"Testing hyperparameters - Learning rate: {learning_rate}, Batch size: {batch_size}, Dropout rate: {dropout_rate}")
-
-    model = CNN()
-    model.to(device)
-
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    criterion = nn.MSELoss()
-
-    # Use a subset of the training data (1%)
-    train_subset_size = int(len(train_dataset) * 0.1)
-    train_subset, _ = torch.utils.data.random_split(train_dataset, [train_subset_size, len(train_dataset) - train_subset_size])
-    train_loader = DataLoader(train_subset, batch_size=batch_size, shuffle=True)
+# Training loop
+num_epochs = 20
+for epoch in range(num_epochs):
+    # Training phase
+    model.train()
+    running_loss = 0.0
+    epoch_start_time = time()
+    print(f"Epoch {epoch+1}/{num_epochs}")
     
-    # Use a subset of the validation data (1%)
-    val_subset_size = int(len(val_dataset) * 0.1)
-    val_subset, _ = torch.utils.data.random_split(val_dataset, [val_subset_size, len(val_dataset) - val_subset_size])
-    val_loader = DataLoader(val_subset, batch_size=batch_size, shuffle=False)
-
-    best_val_loss = float('inf')
-    patience = 4
-    no_improve_epochs = 0
-
-    for epoch in range(20):  
-        print(f"Epoch {epoch+1}")
-        model.train()
-        running_loss = 0.0
-
-        for images, labels in train_loader:
+    for batch_idx, (images, labels) in enumerate(train_loader, start=1):
+        try:
             images, labels = images.to(device), labels.to(device, dtype=torch.float32)
+            # Zero the parameter gradients
             optimizer.zero_grad()
-            outputs = model(images).squeeze()
+        
+            # Forward pass
+            outputs = model(images)
+            outputs = outputs.squeeze()  # Remove unnecessary dimensions
             loss = criterion(outputs, labels)
+            
+            # Backward pass and optimization
             loss.backward()
             optimizer.step()
+            
             running_loss += loss.item()
+            avg_batch_loss = running_loss / batch_idx
 
+            # Log batch progress
+            elapsed = time() - epoch_start_time
+            eta = (elapsed / batch_idx) * (len(train_loader) - batch_idx)
+            print(f"Batch {batch_idx}/{len(train_loader)} | Loss: {avg_batch_loss:.4f} | ETA: {eta:.1f}s", end="\r")
+        
+        except Exception as e:
+            print(f"\nError in batch {batch_idx}: {e}. Skipping batch.")
 
-
-        avg_train_loss = running_loss / len(train_loader)
-        print(f"Training Loss: {avg_train_loss:.4f}")
-
-        model.eval()
-        val_loss = 0.0
-        with torch.no_grad():
-            for images, labels in val_loader:
+    avg_train_loss = running_loss / len(train_loader)
+    train_losses.append(avg_train_loss)
+    print(f"\nEpoch [{epoch+1}/{num_epochs}], Training Loss: {avg_train_loss:.4f}")
+    
+    # Validation phase
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for images, labels in val_loader:
+            try:
                 images, labels = images.to(device), labels.to(device, dtype=torch.float32)
                 outputs = model(images).squeeze()
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
+            except Exception as e:
+                print(f"Error during validation batch: {e}. Skipping batch.")
+    
+    avg_val_loss = val_loss / len(val_loader)
+    val_losses.append(avg_val_loss)
+    print(f"Epoch [{epoch+1}/{num_epochs}], Validation Loss: {avg_val_loss:.4f}")
 
-        avg_val_loss = val_loss / len(val_loader)
-        print(f"Validation Loss: {avg_val_loss:.4f}")
+    # Step scheduler
+    if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+        scheduler.step(avg_val_loss)
+    else:
+        scheduler.step()
 
-        if avg_val_loss < best_val_loss:
-            best_val_loss = avg_val_loss
-            no_improve_epochs = 0
-        else:
-            no_improve_epochs += 1
+# Save the model
+torch.save(model.state_dict(), "car_counting_cnn.pth")
+print("Model saved!")
 
-        if no_improve_epochs >= patience:
-            print(f"Early stopping at epoch {epoch+1}")
-            break
+# Plot the training and validation losses on the same graph for comparison and save the plot
+plt.figure(figsize=(12, 6))
+plt.plot(train_losses, label="Training Loss")
+plt.plot(val_losses, label="Validation Loss")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training and Validation Loss")
+plt.legend()
+plt.grid()
+plt.savefig("loss_plot_BO.png")
+plt.show()
 
-    print(f"Validation Loss: {best_val_loss:.4f}")
-    return best_val_loss
+# Split the test set into 30 smaller subsets
+num_splits = 30
+subset_size = len(test_dataset) // num_splits
 
-# Defining the bounds for the hyperparameters
-bounds = [
-    {'name': 'learning_rate', 'type': 'continuous', 'domain': (1e-5, 1e-2)},
-    {'name': 'batch_size', 'type': 'discrete', 'domain': (16, 32, 64)},
-    {'name': 'dropout_rate', 'type': 'continuous', 'domain': (0.1, 0.5)}
-]
+# Ensure subset sizes are consistent
+splits = [subset_size] * num_splits
+remaining = len(test_dataset) % num_splits
+for i in range(remaining):
+    splits[i] += 1
 
-#Bayesian Optimization object
-optimizer = GPyOpt.methods.BayesianOptimization(f=objective_function, domain=bounds)
+# Create 30 subsets
+test_subsets = random_split(test_dataset, splits)
+
+# Initialize test losses
+test_losses = []
+
+# Evaluate the model on each subset
+model.eval()
+with torch.no_grad():
+    for i, subset in enumerate(test_subsets, start=1):
+        subset_loader = DataLoader(subset, batch_size=64, shuffle=False)  # Use the subset in a DataLoader
+        subset_loss = 0.0
+        for images, labels in subset_loader:
+            images, labels = images.to(device), labels.to(device, dtype=torch.float32)
+            outputs = model(images).squeeze()
+            loss = criterion(outputs, labels)
+            subset_loss += loss.item()
+
+        avg_subset_loss = subset_loss / len(subset_loader)
+        test_losses.append(avg_subset_loss)
+        print(f"Subset {i}/{num_splits} - Test Loss: {avg_subset_loss:.4f}")
+
+# Calculate overall statistics
+mean_test_loss = np.mean(test_losses)
+std_test_loss = np.std(test_losses, ddof=1)  # Sample standard deviation
+
+confidence = 0.95  # 95% confidence level
+mean_test_loss = np.mean(test_losses)
+std_test_loss = np.std(test_losses, ddof=1)  # Sample standard deviation
+margin_of_error = 10
+
+print(f"Test Loss - Mean: {mean_test_loss:.4f}")
+print(f"95% Confidence Interval: [{mean_test_loss - margin_of_error:.4f}, {mean_test_loss + margin_of_error:.4f}]")
+
+def calculate_sample_size(std, margin_of_error, confidence_level=0.95):
+    z = 1.96
+    n = (z * std / margin_of_error) ** 2
+    return math.ceil(n)
 
 
-# Initialize lists to track best parameters and validation loss across all iterations
-best_parameters_all = []
-best_validation_loss_all = []
-
-#optimization process
-max_iter = 10  #max iterations for optimization
-optimizer.run_optimization(max_iter=max_iter)  
+sample_size = calculate_sample_size(std_test_loss, margin_of_error, confidence_level=confidence)
+print(f"Required Sample Size for 95% Confidence: {sample_size}")
 
 
-best_parameters = optimizer.X[np.argmin(optimizer.Y)]  # Best parameters
-best_validation_loss = np.min(optimizer.Y)  # Best validationloss
-
-print("\nOverall Best Hyperparameters after all iterations:")
-print(f"Best hyperparameters: {best_parameters}")
-print(f"Best validation loss: {best_validation_loss}")
+            
