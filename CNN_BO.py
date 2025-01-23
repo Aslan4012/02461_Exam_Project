@@ -24,12 +24,6 @@ import math
 
 class ParkingLotDataset(Dataset):
     def __init__(self, batch_folder):
-        """
-        Initialize the ParkingLotDataset with lazy loading of image and label batches.
-
-        Args:
-        - batch_folder (str): Path to the folder containing both image and label .npy files.
-        """
         self.batch_folder = batch_folder
 
         # Get the list of image and label batch files
@@ -84,35 +78,35 @@ class CNN(nn.Module):
         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(32)
         self.relu1 = nn.ReLU()
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [32, 256, 256]
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2) 
         self.dropout1 = nn.Dropout(0.25)
 
         # Second Convolutional Block
         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
         self.relu2 = nn.ReLU()
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [64, 128, 128]
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2) 
         self.dropout2 = nn.Dropout(3.56670107e-01)
 
         # Third Convolutional Block
         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
         self.bn3 = nn.BatchNorm2d(128)
         self.relu3 = nn.ReLU()
-        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [128, 64, 64]
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2) 
         self.dropout3 = nn.Dropout(3.56670107e-01)
 
         # Fourth Convolutional Block (optional)
         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(256)
         self.relu4 = nn.ReLU()
-        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2)  # Output: [256, 32, 32]
+        self.pool4 = nn.MaxPool2d(kernel_size=2, stride=2) 
         self.dropout4 = nn.Dropout(3.56670107e-01)
 
         # Fully Connected Layers
-        self.fc1 = nn.Linear(256 * 32 * 32, 128)  # Adjust input size
+        self.fc1 = nn.Linear(256 * 32 * 32, 128)  
         self.relu5 = nn.ReLU()
         self.dropout5 = nn.Dropout(3.56670107e-01)
-        self.fc2 = nn.Linear(128, 1)  # Single output for regression
+        self.fc2 = nn.Linear(128, 1)  
 
     def forward(self, x):
         x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
@@ -121,17 +115,17 @@ class CNN(nn.Module):
         x = self.dropout2(x)
         x = self.pool3(self.relu3(self.bn3(self.conv3(x))))
         x = self.dropout3(x)
-        x = self.pool4(self.relu4(self.bn4(self.conv4(x))))  # Optional
+        x = self.pool4(self.relu4(self.bn4(self.conv4(x))))  
         x = self.dropout4(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        # print(f"Flattened shape: {x.shape}")  # Debugging
+        x = x.view(x.size(0), -1)  
+        
         x = self.fc1(x)
         x = self.relu5(x)
         x = self.fc2(x)
         return x
     
 
-batch_folder = "/work3/s224819/02461_Exam_Project/Processed"
+batch_folder = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Processed"
 
 # Create dataset
 dataset = ParkingLotDataset(batch_folder)
@@ -166,9 +160,8 @@ tranform = transforms.ToTensor()
 # Initialize the model, loss function, and optimizer
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = CNN().to(device)
-criterion = nn.MSELoss()  # Regression task -> Mean Squared Error loss
+criterion = nn.MSELoss()  
 optimizer = optim.Adam(model.parameters(), lr=4.55373601e-03, weight_decay=1e-4)
-# scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3)
 print("Step 1 done")
 
@@ -195,7 +188,7 @@ for epoch in range(num_epochs):
         
             # Forward pass
             outputs = model(images)
-            outputs = outputs.squeeze()  # Remove unnecessary dimensions
+            outputs = outputs.squeeze()  
             loss = criterion(outputs, labels)
             
             # Backward pass and optimization
@@ -276,7 +269,7 @@ test_losses = []
 model.eval()
 with torch.no_grad():
     for i, subset in enumerate(test_subsets, start=1):
-        subset_loader = DataLoader(subset, batch_size=64, shuffle=False)  # Use the subset in a DataLoader
+        subset_loader = DataLoader(subset, batch_size=64, shuffle=False)  
         subset_loss = 0.0
         for images, labels in subset_loader:
             images, labels = images.to(device), labels.to(device, dtype=torch.float32)
@@ -290,11 +283,11 @@ with torch.no_grad():
 
 # Calculate overall statistics
 mean_test_loss = np.mean(test_losses)
-std_test_loss = np.std(test_losses, ddof=1)  # Sample standard deviation
+std_test_loss = np.std(test_losses, ddof=1)  
 
 confidence = 0.95  # 95% confidence level
 mean_test_loss = np.mean(test_losses)
-std_test_loss = np.std(test_losses, ddof=1)  # Sample standard deviation
+std_test_loss = np.std(test_losses, ddof=1)  
 margin_of_error = 10
 
 print(f"Test Loss - Mean: {mean_test_loss:.4f}")

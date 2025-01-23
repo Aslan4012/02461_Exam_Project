@@ -1,10 +1,14 @@
+# All of the code below has been written in cooperation with generative AI. 
+# The AI has provided the general structure of the code, and I have filled in the details,
+# such as the paths, the labels, the image processing as well as planned the processing of the images in batches.
+
 import numpy as np
 import os
 from PIL import Image
 
 # Define paths
 Images = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Images"
-output_folder = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Processed"  # Output folder
+output_folder = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Processed" 
 labels_file = "/Users/aslandalhoffbehbahani/Documents/02461_Exam_Project/Labels_Num.txt"
 
 # Ensure output folder exists
